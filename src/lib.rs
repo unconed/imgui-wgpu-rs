@@ -100,11 +100,11 @@ pub struct Renderer {
   uniform_buffer: wgpu::Buffer,
   uniform_bind_group: wgpu::BindGroup,
   vertex_buffer: wgpu::Buffer,
-  vertex_count: u32,
-  vertex_max: u32,
+  vertex_count: u64,
+  vertex_max: u64,
   index_buffer: wgpu::Buffer,
-  index_count: u32,
-  index_max: u32,
+  index_count: u64,
+  index_max: u64,
   textures: Textures<Texture>,
   atlas: ImTexture,
   clear_color: Option<wgpu::Color>,
@@ -127,14 +127,14 @@ impl Renderer {
     // Create uniform matrix buffer
     let size = 64;
     let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-      size, usage: wgpu::BufferUsageFlags::UNIFORM | wgpu::BufferUsageFlags::TRANSFER_DST,
+      size, usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::TRANSFER_DST,
     });
 
     let uniform_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
       bindings: &[
         wgpu::BindGroupLayoutBinding {
           binding: 0,
-          visibility: wgpu::ShaderStageFlags::VERTEX,
+          visibility: wgpu::ShaderStage::VERTEX,
           ty: wgpu::BindingType::UniformBuffer,
         },
       ]
@@ -158,12 +158,12 @@ impl Renderer {
       bindings: &[
         wgpu::BindGroupLayoutBinding {
           binding: 0,
-          visibility: wgpu::ShaderStageFlags::FRAGMENT,
+          visibility: wgpu::ShaderStage::FRAGMENT,
           ty: wgpu::BindingType::SampledTexture,
         },
         wgpu::BindGroupLayoutBinding {
           binding: 1,
-          visibility: wgpu::ShaderStageFlags::FRAGMENT,
+          visibility: wgpu::ShaderStage::FRAGMENT,
           ty: wgpu::BindingType::Sampler,
         },
       ]
@@ -180,10 +180,10 @@ impl Renderer {
         module: &vs_module,
         entry_point: "main",
       },
-      fragment_stage: wgpu::PipelineStageDescriptor {
+      fragment_stage: Some(wgpu::PipelineStageDescriptor {
         module: &fs_module,
         entry_point: "main",
-      },
+      }),
       rasterization_state: wgpu::RasterizationStateDescriptor {
         front_face: wgpu::FrontFace::Cw,
         cull_mode: wgpu::CullMode::None,
@@ -195,39 +195,39 @@ impl Renderer {
       color_states: &[
         wgpu::ColorStateDescriptor {
           format,
-          color: wgpu::BlendDescriptor {
+          color_blend: wgpu::BlendDescriptor {
             src_factor: wgpu::BlendFactor::SrcAlpha,
             dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
             operation: wgpu::BlendOperation::Add,
           },
-          alpha: wgpu::BlendDescriptor {
+          alpha_blend: wgpu::BlendDescriptor {
             src_factor: wgpu::BlendFactor::OneMinusDstAlpha,
             dst_factor: wgpu::BlendFactor::One,
             operation: wgpu::BlendOperation::Add,
           },
-          write_mask: wgpu::ColorWriteFlags::ALL,
+          write_mask: wgpu::ColorWrite::ALL,
         },
       ],
       depth_stencil_state: None,
       index_format: wgpu::IndexFormat::Uint16,
       vertex_buffers: &[
         wgpu::VertexBufferDescriptor {
-          stride: size_of::<ImDrawVert>() as u32,
+          stride: size_of::<ImDrawVert>() as u64,
           step_mode: wgpu::InputStepMode::Vertex,
           attributes: &[
             wgpu::VertexAttributeDescriptor {
               format: wgpu::VertexFormat::Float2,
-              attribute_index: 0,
+              shader_location: 0,
               offset: 0,
             },
             wgpu::VertexAttributeDescriptor {
               format: wgpu::VertexFormat::Float2,
-              attribute_index: 1,
+              shader_location: 1,
               offset: 8,
             },
             wgpu::VertexAttributeDescriptor {
               format: wgpu::VertexFormat::Uint,
-              attribute_index: 2,
+              shader_location: 2,
               offset: 16,
             },
           ]
@@ -237,28 +237,30 @@ impl Renderer {
     });
 
     // Create vertex/index buffer
-    let vertex_max = 32768;
-    let vertex_size = size_of::<ImDrawVert>() as u32;
+    let vertex_max: u64 = 32768;
+    let vertex_size = size_of::<ImDrawVert>() as u64;
     let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
       size: vertex_max * vertex_size,
-      usage: wgpu::BufferUsageFlags::VERTEX | wgpu::BufferUsageFlags::TRANSFER_DST,
+      usage: wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::TRANSFER_DST,
     });
 
-    let index_max = 32768;
-    let index_size = size_of::<u16>() as u32;
+    let index_max: u64 = 32768;
+    let index_size = size_of::<u16>() as u64;
     let index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
       size: vertex_max * index_size,
-      usage: wgpu::BufferUsageFlags::INDEX | wgpu::BufferUsageFlags::TRANSFER_DST,
+      usage: wgpu::BufferUsage::INDEX | wgpu::BufferUsage::TRANSFER_DST,
     });
     
     // Create texture
     let texture = imgui.prepare_texture(|handle| {
       let texture = device.create_texture(&wgpu::TextureDescriptor {
         size: wgpu::Extent3d { width: handle.width, height: handle.height, depth: 1 },
-        array_size: 1,
+        array_layer_count: 1,
+        mip_level_count: 1,
+        sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
         format: wgpu::TextureFormat::Rgba8Unorm,
-        usage: wgpu::TextureUsageFlags::SAMPLED | wgpu::TextureUsageFlags::TRANSFER_DST
+        usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::TRANSFER_DST
       });
 
       Renderer::upload_immediate(handle.width, handle.height, handle.pixels, &texture, device);
@@ -266,17 +268,17 @@ impl Renderer {
     })?;
 
     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-      r_address_mode: wgpu::AddressMode::ClampToEdge,
-      s_address_mode: wgpu::AddressMode::ClampToEdge,
-      t_address_mode: wgpu::AddressMode::ClampToEdge,
+      address_mode_u: wgpu::AddressMode::ClampToEdge,
+      address_mode_v: wgpu::AddressMode::ClampToEdge,
+      address_mode_w: wgpu::AddressMode::ClampToEdge,
       mag_filter: wgpu::FilterMode::Linear,
       min_filter: wgpu::FilterMode::Linear,
       mipmap_filter: wgpu::FilterMode::Linear,
       lod_min_clamp: -100.0,
       lod_max_clamp: 100.0,
-      max_anisotropy: 0,
       compare_function: wgpu::CompareFunction::Always,
-      border_color: wgpu::BorderColor::TransparentBlack,
+      //max_anisotropy: 0,
+      //border_color: wgpu::BorderColor::TransparentBlack,
     });
 
     let pair = Texture::new(texture, sampler, &texture_layout, device);
@@ -339,6 +341,7 @@ impl Renderer {
     let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
       color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
         attachment: &view,
+        resolve_target: None,
         load_op: match self.clear_color { Some(_) => wgpu::LoadOp::Clear, _ => wgpu::LoadOp::Load },
         store_op: wgpu::StoreOp::Store,
         clear_color: self.clear_color.unwrap_or(wgpu::Color { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }),
@@ -353,7 +356,7 @@ impl Renderer {
     self.index_count = 0;
 
     self.update_uniform_buffer(&matrix)?;
-    rpass.set_bind_group(0, &self.uniform_bind_group);
+    rpass.set_bind_group(0, &self.uniform_bind_group, &[]);
 
     ui.render(|ui, mut draw_data| {
       draw_data.scale_clip_rects(ui.imgui().display_framebuffer_scale());
@@ -375,7 +378,7 @@ impl Renderer {
       let (fb_width, fb_height) = fb_size;
 
       let base_vertex = self.vertex_count;
-      let mut start = self.index_count;
+      let mut start = self.index_count as u32;
 
       let vertex_buffer = self.upload_vertex_buffer(device, draw_list.vtx_buffer)?;
       let index_buffer = self.upload_index_buffer(device, draw_list.idx_buffer)?;
@@ -390,7 +393,7 @@ impl Renderer {
           .get(texture_id)
           .ok_or_else(|| RendererError::BadTexture(texture_id))?;
 
-        rpass.set_bind_group(1, tex.bind_group());
+        rpass.set_bind_group(1, tex.bind_group(), &[]);
 
         let end = start + cmd.elem_count;
         let scissor = (
@@ -427,9 +430,9 @@ impl Renderer {
     vtx_buffer: &[ImDrawVert],
 //  ) -> RendererResult<wgpu::Buffer> {
   ) -> RendererResult<()> {
-    let vertex_count = vtx_buffer.len() as u32;
+    let vertex_count = vtx_buffer.len() as u64;
     if self.vertex_count + vertex_count < self.vertex_max {
-      self.vertex_buffer.set_sub_data(self.vertex_count * (size_of::<ImDrawVert>() as u32), cast_slice(vtx_buffer));
+      self.vertex_buffer.set_sub_data(self.vertex_count * (size_of::<ImDrawVert>() as u64), cast_slice(vtx_buffer));
       self.vertex_count += vertex_count;
       Ok(())
     }
@@ -439,7 +442,7 @@ impl Renderer {
     /*
     let size = (vtx_buffer.len() * size_of::<ImDrawVert>()) as u32;
     let (buffer, data) = device.create_buffer_mapped(&wgpu::BufferDescriptor {
-      size, usage: wgpu::BufferUsageFlags::VERTEX | wgpu::BufferUsageFlags::TRANSFER_DST | wgpu::BufferUsageFlags::MAP_WRITE,
+      size, usage: wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::TRANSFER_DST | wgpu::BufferUsage::MAP_WRITE,
     });
 
     data.copy_from_slice(&vtx_buffer);
@@ -454,9 +457,9 @@ impl Renderer {
     idx_buffer: &[ImDrawIdx],
 //  ) -> RendererResult<wgpu::Buffer> {
   ) -> RendererResult<()> {
-    let index_count = idx_buffer.len() as u32;
+    let index_count = idx_buffer.len() as u64;
     if self.index_count + index_count < self.index_max {
-      self.index_buffer.set_sub_data(self.index_count * (size_of::<ImDrawIdx>() as u32), cast_slice(idx_buffer));
+      self.index_buffer.set_sub_data(self.index_count * (size_of::<ImDrawIdx>() as u64), cast_slice(idx_buffer));
       self.index_count += index_count;
       Ok(())
     }
@@ -466,7 +469,7 @@ impl Renderer {
     /*
     let size = (idx_buffer.len() * size_of::<ImDrawIdx>()) as u32;
     let (buffer, data) = device.create_buffer_mapped(&wgpu::BufferDescriptor {
-      size, usage: wgpu::BufferUsageFlags::VERTEX | wgpu::BufferUsageFlags::TRANSFER_DST | wgpu::BufferUsageFlags::MAP_WRITE,
+      size, usage: wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::TRANSFER_DST | wgpu::BufferUsage::MAP_WRITE,
     });
 
     data.copy_from_slice(&idx_buffer);
@@ -478,10 +481,10 @@ impl Renderer {
   fn upload_immediate(width: u32, height: u32, data: &[u8], target: &wgpu::Texture, device: &mut wgpu::Device) {
 
     // Place in wgpu buffer
-    let bytes = data.len() as u32;
+    let bytes = data.len() as u64;
     let buffer = device.create_buffer(&wgpu::BufferDescriptor {
       size: bytes,
-      usage: wgpu::BufferUsageFlags::TRANSFER_SRC,
+      usage: wgpu::BufferUsage::TRANSFER_SRC,
     });
     buffer.set_sub_data(0, data);
 
@@ -490,7 +493,7 @@ impl Renderer {
       todo: 0,
     });
 
-    let pixel_size = bytes / width / height;
+    let pixel_size = (bytes as u32) / width / height;
     encoder.copy_buffer_to_texture(
       wgpu::BufferCopyView {
         buffer: &buffer,
@@ -500,8 +503,8 @@ impl Renderer {
       },
       wgpu::TextureCopyView {
         texture: target,
-        level: 0,
-        slice: 0,
+        mip_level: 0,
+        array_layer: 0,
         origin: wgpu::Origin3d {
           x: 0.0,
           y: 0.0,
