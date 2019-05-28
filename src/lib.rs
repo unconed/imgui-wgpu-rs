@@ -357,12 +357,13 @@ impl Renderer {
 
     //self.update_uniform_buffer(&matrix)?;
     let temp_buf = device
-        .create_buffer_mapped(16, wgpu::BufferUsage::TRANSFER_SRC)
+        .create_buffer_mapped(64, wgpu::BufferUsage::TRANSFER_SRC)
         .fill_from_slice(cast_slice(&matrix));
 
-    let mut encoder =
+    let mut copy_encoder =
         device.create_command_encoder(&wgpu::CommandEncoderDescriptor { todo: 0 });
-    encoder.copy_buffer_to_buffer(&temp_buf, 0, &self.uniform_buffer, 0, 64);
+    copy_encoder.copy_buffer_to_buffer(&temp_buf, 0, &self.uniform_buffer, 0, 64);
+    device.get_queue().submit(&[copy_encoder.finish()]);
     rpass.set_bind_group(0, &self.uniform_bind_group, &[]);
 
     ui.render(|ui, mut draw_data| {
@@ -380,9 +381,10 @@ impl Renderer {
       device: &mut wgpu::Device,
       rpass: &mut wgpu::RenderPass<'render>,
       draw_list: &DrawList<'data>,
-      fb_size: (f32, f32),
+      _fb_size: (f32, f32),
   ) -> RendererResult<()> {
-      let (fb_width, fb_height) = fb_size;
+      //only used for scissor?
+      //let (fb_width, fb_height) = fb_size;
 
       let base_vertex = self.vertex_count;
       let mut start = self.index_count as u32;
@@ -403,6 +405,7 @@ impl Renderer {
         rpass.set_bind_group(1, tex.bind_group(), &[]);
 
         let end = start + cmd.elem_count;
+        /*
         let scissor = (
           cmd.clip_rect.x.max(0.0).min(fb_width).round() as u16,
           cmd.clip_rect.y.max(0.0).min(fb_height).round() as u16,
@@ -414,7 +417,7 @@ impl Renderer {
             .abs()
             .min(fb_height)
             .round() as u16,
-        );
+        );*/
 
         rpass.draw_indexed(start..end, base_vertex as i32, 0..1);
           
@@ -438,7 +441,7 @@ impl Renderer {
     vtx_buffer: &[ImDrawVert],
   ) -> RendererResult<wgpu::Buffer> {
 //  ) -> RendererResult<()> {
-    let vertex_count = vtx_buffer.len() as u64;
+    //let vertex_count = vtx_buffer.len() as u64;
     /*
     if self.vertex_count + vertex_count < self.vertex_max {
       self.vertex_buffer.set_sub_data(self.vertex_count * (size_of::<ImDrawVert>() as u64), cast_slice(vtx_buffer));
@@ -449,7 +452,7 @@ impl Renderer {
       Err(RendererError::VertexBufferTooSmall)
     }
     */
-    let size = vtx_buffer.len() * size_of::<ImDrawVert>();
+    let size = vtx_buffer.len();// * size_of::<ImDrawVert>();
     let temp_buf = device.create_buffer_mapped(
         size,
         wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::TRANSFER_DST | wgpu::BufferUsage::MAP_WRITE,
@@ -466,7 +469,7 @@ impl Renderer {
     idx_buffer: &[ImDrawIdx],
   ) -> RendererResult<wgpu::Buffer> {
 //  ) -> RendererResult<()> {
-    let index_count = idx_buffer.len() as u64;
+    //let index_count = idx_buffer.len() as u64;
     /*
     if self.index_count + index_count < self.index_max {
       self.index_buffer.set_sub_data(self.index_count * (size_of::<ImDrawIdx>() as u64), cast_slice(idx_buffer));
@@ -477,7 +480,7 @@ impl Renderer {
       Err(RendererError::IndexBufferTooSmall)
     }
     */
-    let size = idx_buffer.len() * size_of::<ImDrawIdx>();
+    let size = idx_buffer.len();// * size_of::<ImDrawIdx>();
     let temp_buf = device.create_buffer_mapped(
         size,
         wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::TRANSFER_DST | wgpu::BufferUsage::MAP_WRITE,
