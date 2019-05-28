@@ -355,7 +355,14 @@ impl Renderer {
     self.vertex_count = 0;
     self.index_count = 0;
 
-    self.update_uniform_buffer(&matrix)?;
+    //self.update_uniform_buffer(&matrix)?;
+    let temp_buf = device
+        .create_buffer_mapped(16, wgpu::BufferUsage::TRANSFER_SRC)
+        .fill_from_slice(cast_slice(&matrix));
+
+    let mut encoder =
+        device.create_command_encoder(&wgpu::CommandEncoderDescriptor { todo: 0 });
+    encoder.copy_buffer_to_buffer(&temp_buf, 0, &self.uniform_buffer, 0, 64);
     rpass.set_bind_group(0, &self.uniform_bind_group, &[]);
 
     ui.render(|ui, mut draw_data| {
@@ -383,8 +390,8 @@ impl Renderer {
       let vertex_buffer = self.upload_vertex_buffer(device, draw_list.vtx_buffer)?;
       let index_buffer = self.upload_index_buffer(device, draw_list.idx_buffer)?;
 
-      //rpass.set_vertex_buffers(&[(&vertex_buffer, 0)]);
-      //rpass.set_index_buffer(&index_buffer, 0);
+      rpass.set_vertex_buffers(&[(&vertex_buffer, 0)]);
+      rpass.set_index_buffer(&index_buffer, 0);
     
       for cmd in draw_list.cmd_buffer {
         let texture_id = cmd.texture_id.into();
@@ -416,21 +423,23 @@ impl Renderer {
       Ok(())
   }
 
+  /*
   fn update_uniform_buffer(
     &mut self,
     matrix: &[[f32; 4]; 4],
   ) -> RendererResult<()> {
     self.uniform_buffer.set_sub_data(0, cast_slice(matrix));
     Ok(())
-  }
+  }*/
 
   fn upload_vertex_buffer(
     &mut self,
-    _device: &mut wgpu::Device,
+    device: &mut wgpu::Device,
     vtx_buffer: &[ImDrawVert],
-//  ) -> RendererResult<wgpu::Buffer> {
-  ) -> RendererResult<()> {
+  ) -> RendererResult<wgpu::Buffer> {
+//  ) -> RendererResult<()> {
     let vertex_count = vtx_buffer.len() as u64;
+    /*
     if self.vertex_count + vertex_count < self.vertex_max {
       self.vertex_buffer.set_sub_data(self.vertex_count * (size_of::<ImDrawVert>() as u64), cast_slice(vtx_buffer));
       self.vertex_count += vertex_count;
@@ -439,25 +448,26 @@ impl Renderer {
     else {
       Err(RendererError::VertexBufferTooSmall)
     }
-    /*
-    let size = (vtx_buffer.len() * size_of::<ImDrawVert>()) as u32;
-    let (buffer, data) = device.create_buffer_mapped(&wgpu::BufferDescriptor {
-      size, usage: wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::TRANSFER_DST | wgpu::BufferUsage::MAP_WRITE,
-    });
-
-    data.copy_from_slice(&vtx_buffer);
-    buffer.unmap();
-    Ok(buffer)
     */
+    let size = vtx_buffer.len() * size_of::<ImDrawVert>();
+    let temp_buf = device.create_buffer_mapped(
+        size,
+        wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::TRANSFER_DST | wgpu::BufferUsage::MAP_WRITE,
+    ).fill_from_slice(&vtx_buffer);
+
+    //data.copy_from_slice(&vtx_buffer);
+    //buffer.unmap();
+    Ok(temp_buf)
   }
 
   fn upload_index_buffer(
     &mut self,
-    _device: &mut wgpu::Device,
+    device: &mut wgpu::Device,
     idx_buffer: &[ImDrawIdx],
-//  ) -> RendererResult<wgpu::Buffer> {
-  ) -> RendererResult<()> {
+  ) -> RendererResult<wgpu::Buffer> {
+//  ) -> RendererResult<()> {
     let index_count = idx_buffer.len() as u64;
+    /*
     if self.index_count + index_count < self.index_max {
       self.index_buffer.set_sub_data(self.index_count * (size_of::<ImDrawIdx>() as u64), cast_slice(idx_buffer));
       self.index_count += index_count;
@@ -466,27 +476,25 @@ impl Renderer {
     else {
       Err(RendererError::IndexBufferTooSmall)
     }
-    /*
-    let size = (idx_buffer.len() * size_of::<ImDrawIdx>()) as u32;
-    let (buffer, data) = device.create_buffer_mapped(&wgpu::BufferDescriptor {
-      size, usage: wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::TRANSFER_DST | wgpu::BufferUsage::MAP_WRITE,
-    });
-
-    data.copy_from_slice(&idx_buffer);
-    buffer.unmap();
-    Ok(buffer)
     */
+    let size = idx_buffer.len() * size_of::<ImDrawIdx>();
+    let temp_buf = device.create_buffer_mapped(
+        size,
+        wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::TRANSFER_DST | wgpu::BufferUsage::MAP_WRITE,
+    ).fill_from_slice(&idx_buffer);
+
+    //data.copy_from_slice(&idx_buffer);
+    //buffer.unmap();
+    Ok(temp_buf)
   }
 
   fn upload_immediate(width: u32, height: u32, data: &[u8], target: &wgpu::Texture, device: &mut wgpu::Device) {
 
     // Place in wgpu buffer
-    let bytes = data.len() as u64;
-    let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-      size: bytes,
-      usage: wgpu::BufferUsage::TRANSFER_SRC,
-    });
-    buffer.set_sub_data(0, data);
+    let bytes = data.len();
+    let buffer = device
+        .create_buffer_mapped(bytes, wgpu::BufferUsage::TRANSFER_SRC)
+        .fill_from_slice(data);
 
     // Upload immediately
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {

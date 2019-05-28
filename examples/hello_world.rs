@@ -1,4 +1,4 @@
-use winit::{
+use wgpu::winit::{
   WindowBuilder, Event, WindowEvent, EventsLoop,
   KeyboardInput, VirtualKeyCode, ElementState,
   dpi::LogicalSize,
@@ -20,10 +20,11 @@ fn main() {
     power_preference: wgpu::PowerPreference::HighPerformance,
   });
 
-  let mut device = adapter.create_device(&wgpu::DeviceDescriptor {
+  let mut device = adapter.request_device(&wgpu::DeviceDescriptor {
     extensions: wgpu::Extensions {
       anisotropic_filtering: false,
     },
+    limits: wgpu::Limits::default(),
   });
   
   let mut events_loop = EventsLoop::new();
@@ -47,7 +48,7 @@ fn main() {
   // Set up swap chain
   //
   let mut sc_desc = wgpu::SwapChainDescriptor {
-    usage: wgpu::TextureUsageFlags::OUTPUT_ATTACHMENT,
+    usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
     format: wgpu::TextureFormat::Bgra8Unorm,
     width: size.width as u32,
     height: size.height as u32,
@@ -105,7 +106,7 @@ fn main() {
             .to_physical(dpi_factor);
 
           sc_desc = wgpu::SwapChainDescriptor {
-            usage: wgpu::TextureUsageFlags::OUTPUT_ATTACHMENT,
+            usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
             format: wgpu::TextureFormat::Bgra8Unorm,
             width: size.width as u32,
             height: size.height as u32,
