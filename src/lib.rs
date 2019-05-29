@@ -344,6 +344,11 @@ impl Renderer {
             [-1.0, -1.0, 0.0, 1.0],
         ];
 
+        let temp_buf = device
+            .create_buffer_mapped(64, wgpu::BufferUsage::TRANSFER_SRC)
+            .fill_from_slice(cast_slice(&matrix));
+        encoder.copy_buffer_to_buffer(&temp_buf, 0, &self.uniform_buffer, 0, 64);
+
         let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
                 attachment: &view,
@@ -369,15 +374,6 @@ impl Renderer {
         self.vertex_count = 0;
         self.index_count = 0;
 
-        //self.update_uniform_buffer(&matrix)?;
-        let temp_buf = device
-            .create_buffer_mapped(64, wgpu::BufferUsage::TRANSFER_SRC)
-            .fill_from_slice(cast_slice(&matrix));
-
-        let mut copy_encoder =
-            device.create_command_encoder(&wgpu::CommandEncoderDescriptor { todo: 0 });
-        copy_encoder.copy_buffer_to_buffer(&temp_buf, 0, &self.uniform_buffer, 0, 64);
-        device.get_queue().submit(&[copy_encoder.finish()]);
         rpass.set_bind_group(0, &self.uniform_bind_group, &[]);
 
         ui.render(|ui, mut draw_data| {
@@ -471,8 +467,6 @@ impl Renderer {
             .create_buffer_mapped(
                 size,
                 wgpu::BufferUsage::VERTEX
-                    | wgpu::BufferUsage::TRANSFER_DST
-                    | wgpu::BufferUsage::MAP_WRITE,
             )
             .fill_from_slice(&vtx_buffer);
 
@@ -503,8 +497,6 @@ impl Renderer {
             .create_buffer_mapped(
                 size,
                 wgpu::BufferUsage::VERTEX
-                    | wgpu::BufferUsage::TRANSFER_DST
-                    | wgpu::BufferUsage::MAP_WRITE,
             )
             .fill_from_slice(&idx_buffer);
 
