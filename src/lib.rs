@@ -405,7 +405,7 @@ impl Renderer {
             .min(fb_height)
             .round() as u16,
         );
-
+        rpass.set_scissor_rect(scissor.0 as _, scissor.1 as _, scissor.2 as _, scissor.3 as _);
         rpass.draw_indexed(start..end, base_vertex as i32, 0..1);
           
         start = end;
